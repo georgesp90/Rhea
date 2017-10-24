@@ -7,8 +7,8 @@
         jumboMode="false"
         optimize="true"
         revision="25.0.0"
-        sha1="a3d791980792644efd2e6530650550f371dead54">
-        <dex dex="/Users/patrick/Documents/Rhea/app/build/intermediates/pre-dexed/debug/classes_492e524687fb9594079f88d01e80bb1f1eaa1674.jar" />
+        sha1="39fd8d537df5cf5f7ab07638ed2767d68f082e6d">
+        <dex dex="/Users/patrick/Documents/Rhea/app/build/intermediates/pre-dexed/release/classes_492e524687fb9594079f88d01e80bb1f1eaa1674.jar" />
     </item>
 
 </items>

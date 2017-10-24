@@ -321,7 +321,7 @@ public class KeyboardService extends InputMethodService {
                     @Override
                     public void failure(String s) {
                         Log.e(TAG, s);
-                        ic.commitText(DEEPLINK_TEXT + " http://bit.ly/2vzi48Q", 0);
+                        ic.commitText(DEEPLINK_TEXT + " http://bit.ly/2yJiADC", 0);
                     }
                 });
             } catch (JSONException e) {
