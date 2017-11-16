@@ -6,6 +6,8 @@ import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.TextView;
 
 import com.glowlabs.rheamoji.KeyboardService;
 import com.glowlabs.rheamoji.R;
@@ -17,14 +19,27 @@ import java.util.List;
  * Created by mist on 21.12.16.
  */
 
-public class PackAdapter extends RecyclerView.Adapter<PackHolder> {
-    private List<PackData> packDataList = new ArrayList<PackData>();
+public class PackAdapter extends RecyclerView.Adapter<PackAdapter.PackHolder> {
+    private List<PackData> packDataList;
     private KeyboardService keyboardService;
     private int selectedTab = 0;
 
     public PackAdapter(KeyboardService kbs, List<PackData> pdl) {
         this.packDataList = pdl;
         this.keyboardService = kbs;
+    }
+
+    public static class PackHolder extends RecyclerView.ViewHolder {
+        public final View progressBar;
+        public final ImageView imageView;
+        public final TextView textView;
+
+        public PackHolder(View itemView) {
+            super(itemView);
+            imageView = (ImageView) itemView.findViewById(R.id.rv_item_image);
+            textView = (TextView) itemView.findViewById(R.id.rv_item_text);
+            progressBar = itemView.findViewById(R.id.progressBar);
+        }
     }
 
     @Override

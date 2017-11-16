@@ -6,6 +6,7 @@ import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 
 import com.glowlabs.rheamoji.KeyboardService;
 import com.glowlabs.rheamoji.R;
@@ -17,14 +18,23 @@ import java.util.List;
  * Created by mist on 12.12.16.
  */
 
-public class StickerAdapter extends RecyclerView.Adapter<StickerHolder> {
+public class StickerAdapter extends RecyclerView.Adapter<StickerAdapter.StickerHolder> {
     private final String TAG = "StickerAdapter";
-    private List<StickerData> stickerDataList = new ArrayList<StickerData>();
+    private List<StickerData> stickerDataList;
     private KeyboardService keyboardService;
 
     public StickerAdapter(KeyboardService kis, List<StickerData> sdl) {
         this.keyboardService = kis;
         this.stickerDataList = sdl;
+    }
+
+    public static class StickerHolder extends RecyclerView.ViewHolder {
+        public ImageView imageView;
+
+        public StickerHolder(View itemView) {
+            super(itemView);
+            imageView = (ImageView) itemView.findViewById(R.id.imageItem);
+        }
     }
 
     @Override

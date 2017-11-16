@@ -6,7 +6,6 @@ import android.content.ClipDescription;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -28,33 +27,25 @@ import android.support.v4.content.FileProvider;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputBinding;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodInfo;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.ImageView;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.glowlabs.rheamoji.packs.PackAdapter;
+import com.glowlabs.rheamoji.packs.PackData;
 import com.glowlabs.rheamoji.stickers.MarginDecoration;
 import com.glowlabs.rheamoji.stickers.StickerAdapter;
-import com.glowlabs.rheamoji.packs.PackData;
 import com.glowlabs.rheamoji.stickers.StickerData;
 import com.glowlabs.rheamoji.stickers.Stickers;
-import com.rokolabs.sdk.RokoMobi;
-import com.rokolabs.sdk.analytics.Event;
-import com.rokolabs.sdk.analytics.RokoLogger;
-import com.rokolabs.sdk.links.ResponseCreateLink;
-import com.rokolabs.sdk.links.RokoLinks;
 import com.rokolabs.sdk.tools.ThreadUtils;
-
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -70,37 +61,69 @@ import java.util.UUID;
  */
 
 
-public class KeyboardService extends InputMethodService {
+//public class KeyboardService extends InputMethodService {
+public class KeyboardService {
     private static final String TAG = "KeyboardService";
-    private final static String SERVICE_NAME = "com.glowlabs.rheawmoji.KeyboardService";
+    private final static String SERVICE_NAME = "com.glowlabs.rheamoji.KeyboardService";
     private static final String MIME_TYPE_GIF = "image/gif";
+    private static final String MIME_TYPE_PNG = "image/png";
     public static File imagesDir;
     public static File tempDir;
     private static String authority; //"com.rokolabs.rokomoji.rokomoji";
-    private static String DEEPLINK_TEXT = "Check out the Glowmoji Keyboard! ";
+    private static String DEEPLINK_TEXT = "Check out the Rheamoji Keyboard! ";
+    private final Context context;
+    private final InputMethodService inputMethodService;
     public Stickers stickers;
     LinearLayout mainBoard;
-    ScrollView scrollView;
+    FrameLayout frameLayout;
     private StickerAdapter stickerAdapter;
-    private List<PackData> packDataList = new ArrayList<PackData>();
     private PackAdapter packAdapter;
+    private List<PackData> packDataList;
     private TextView packNameLabel;
     private boolean contentSupportedGif;
-    private RecyclerView packView, stickerView;
+    private RecyclerView packView;
+    private RecyclerView stickerView;
     private int lastTab = 0;
-    private String deeplink;
+    private String deeplink = "http://bit.ly/2yJiADC";
     private String deeplinkContentId;
     private long startTime = 0;
     private EditorInfo editorInfo;
+    private static KeyboardService instance;
 
-    public static boolean rokomojiEnabled(Activity activity) {
+    private KeyboardService(Context context, InputMethodService inputMethodService) {
+        this.context = context;
+        this.inputMethodService = inputMethodService;
+        packDataList = new ArrayList<>();
+        packAdapter = new PackAdapter(returnThis(), packDataList);
+    }
+
+    public static KeyboardService getInstance() {
+        if (instance == null) {
+            throw new NullPointerException("KeyboardService must be initialized");
+        }
+        return instance;
+    }
+
+    public static void init(InputMethodService inputMethodService) {
+        if (instance != null) {
+            throw new IllegalStateException("KeyboardService has been already initialized");
+        }
+        instance = new KeyboardService(inputMethodService, inputMethodService);
+    }
+
+    public void setPackView(RecyclerView packView) {
+        this.packView = packView;
+        this.packView.setAdapter(packAdapter);
+    }
+
+    public static boolean rokomojiEnabled(Context context) {
 //        requestPermissionIfNeeded(Manifest.permission.READ_EXTERNAL_STORAGE, activity);
-        InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+        InputMethodManager imm = (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
         List<InputMethodInfo> imList = imm.getEnabledInputMethodList();
         for (InputMethodInfo imi : imList) {
 
-            if (activity.getPackageName().equalsIgnoreCase(imi.getPackageName()) && SERVICE_NAME.equalsIgnoreCase(imi.getServiceName())) {
-                //if (SERVICE_NAME.equalsIgnoreCase(imi.getServiceName())) {
+            if (context.getPackageName().equalsIgnoreCase(imi.getPackageName())
+                    && SERVICE_NAME.equalsIgnoreCase(imi.getServiceName())) {
                 return true;
             }
         }
@@ -120,29 +143,24 @@ public class KeyboardService extends InputMethodService {
     }
 
     private void showStickers() {
+        packDataList.clear();
         if (stickers.packDataList.size() > 0) {
-            packDataList = stickers.packDataList;
+            packDataList.addAll(stickers.packDataList);
         } else {
-            packDataList = stickers.packDataListDefault;
+            packDataList.addAll(stickers.packDataListDefault);
         }
-        final List<PackData> curDataList = new ArrayList<>(packDataList);
-        if (curDataList.size() > 0) {
-            ThreadUtils.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    packAdapter = new PackAdapter(returnThis(), curDataList);
-                    if (packView != null) {
-                        packView.setAdapter(packAdapter);
-                    }
-
-                    if (curDataList.size() > lastTab) {
-                        switchBoard(lastTab);
-                    } else {
-                        switchBoard(0);
-                    }
+        ThreadUtils.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                packAdapter.notifyDataSetChanged();
+                int size = packDataList.size();
+                if (size > lastTab) {
+                    switchBoard(lastTab);
+                } else if (size > 0) {
+                    switchBoard(0);
                 }
-            });
-        }
+            }
+        });
     }
 
     private KeyboardService returnThis() {
@@ -173,29 +191,28 @@ public class KeyboardService extends InputMethodService {
         }
     }
 
-    @Override
-    public View onCreateInputView() {
-        mainBoard = (LinearLayout) getLayoutInflater().inflate(R.layout.main_board_layout, null);
-        packNameLabel = (TextView) mainBoard.findViewById(R.id.packNameLabel);
-        scrollView = (ScrollView) mainBoard.findViewById(R.id.gif_view);
+    public View onCreateInputView(LayoutInflater inflater) {
+        mainBoard = (LinearLayout) inflater.inflate(R.layout.main_board_layout, null);
+        //packNameLabel = (TextView) mainBoard.findViewById(R.id.packNameLabel);
+        frameLayout = (FrameLayout) mainBoard.findViewById(R.id.gif_view);
 
-        stickerView = (RecyclerView) getLayoutInflater().inflate(R.layout.recycler_view, null);
-        stickerView.addItemDecoration(new MarginDecoration(this));
+        stickerView = (RecyclerView) inflater.inflate(R.layout.recycler_view, null);
+        stickerView.addItemDecoration(new MarginDecoration(context));
         stickerView.setHasFixedSize(true);
-        stickerView.setLayoutManager(new GridLayoutManager(this, 5));
+        stickerView.setLayoutManager(new GridLayoutManager(context, 5));
 
-        scrollView.addView(stickerView);
+        frameLayout.addView(stickerView);
 
-        ImageView btShareLinkGP = (ImageView) mainBoard.findViewById(R.id.btShareLinkGP);
+        /*ImageView btShareLinkGP = (ImageView) mainBoard.findViewById(R.id.btShareLinkGP);
         btShareLinkGP.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 shareLinkToGP();
             }
-        });
+        });*/
 
         // packs bar
-        packView = (RecyclerView) mainBoard.findViewById(R.id.pack_recycler_view);
+        //packView = (RecyclerView) mainBoard.findViewById(R.id.pack_recycler_view);
 
         showStickers();
         return mainBoard;
@@ -204,15 +221,15 @@ public class KeyboardService extends InputMethodService {
     public void inputContent(@NonNull StickerData stickerData, int position) {
         final int flag;
         //final Uri contentUri = FileProvider.getUriForFile(this, getAuthority(), stickerData.file);
-        final Uri contentUri = FileProvider.getUriForFile(this, authority, stickerData.file);
+        final Uri contentUri = FileProvider.getUriForFile(context, authority, stickerData.file);
 
-        final EditorInfo editorInfo = getCurrentInputEditorInfo();
+        final EditorInfo editorInfo = inputMethodService.getCurrentInputEditorInfo();
         if (Build.VERSION.SDK_INT >= 25) {
             flag = InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION;
         } else {
             flag = 0;
             try {
-                grantUriPermission(editorInfo.packageName, contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                context.grantUriPermission(editorInfo.packageName, contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
             } catch (Exception e) {
                 Log.e(TAG, "grantUriPermission failed packageName=" + editorInfo.packageName + " contentUri=" + contentUri, e);
             }
@@ -220,22 +237,28 @@ public class KeyboardService extends InputMethodService {
 
         if (isCommitContentSupported(editorInfo, stickerData.mime)) {
             String description = "Images";
-            InputContentInfoCompat icic;
+            final InputContentInfoCompat inputContentInfo;
             if (stickerData.url == null) {
-                icic = new InputContentInfoCompat(contentUri, new ClipDescription(description, new String[]{stickerData.mime, MIME_TYPE_GIF}), null);
+                inputContentInfo = new InputContentInfoCompat(contentUri, new ClipDescription(
+                        description, new String[]{stickerData.mime, MIME_TYPE_GIF}), null);
             } else {
-                icic = new InputContentInfoCompat(contentUri, new ClipDescription(description, new String[]{stickerData.mime, MIME_TYPE_GIF}), Uri.parse(stickerData.url));
+                inputContentInfo = new InputContentInfoCompat(contentUri, new ClipDescription(
+                        description,
+                        new String[]{stickerData.mime, MIME_TYPE_GIF}),
+                        Uri.parse(stickerData.url));
             }
-            final InputContentInfoCompat inputContentInfoCompat = icic;
 //            if ("com.facebook.orca".equals(getAppForShare(stickerData).packageName)) {
 //                if (!stickerToShare(stickerData)) {
 //                    Toast.makeText(this, "Application does not support stic   kers", Toast.LENGTH_SHORT).show();
 //                }
 //            } else {
-            InputConnectionCompat.commitContent(getCurrentInputConnection(), getCurrentInputEditorInfo(), inputContentInfoCompat, flag, null);
+            InputConnectionCompat.commitContent(
+                    inputMethodService.getCurrentInputConnection(),
+                    editorInfo,
+                    inputContentInfo, flag, null);
 //            }
             // events
-            Event used = new Event("_ROKO.Stickers. Used");
+            /*Event used = new Event("_ROKO.Stickers. Used");
             used.set("photoType", "New");
             used.set("stickerId", stickerData.objectId);
             used.set("stickerPackId", stickerData.packId);
@@ -250,12 +273,12 @@ public class KeyboardService extends InputMethodService {
             placed.set("stickerPackId", stickerData.packId);
             placed.set("stickerPackName", stickerData.packName);
             placed.set("positionInPack", position + 1);
-            RokoLogger.addEvents(placed);
+            RokoLogger.addEvents(placed);*/
         } else if (!stickerToShare(stickerData)) {
 
-            Toast.makeText(this, "Application does not support stickers", Toast.LENGTH_SHORT).show();
+            Toast.makeText(context, "Application does not support stickers", Toast.LENGTH_SHORT).show();
         }
-        getStickers();
+        //getStickers();
     }
 
     private Boolean stickerToShare(@NonNull StickerData stickerData, Uri contentUri) {
@@ -273,7 +296,7 @@ public class KeyboardService extends InputMethodService {
                 share.addFlags(Intent.FLAG_FROM_BACKGROUND);
 
                 share.setPackage(ai.packageName);
-                startActivity(Intent.createChooser(share, "Share Image"));
+                context.startActivity(Intent.createChooser(share, "Share Image"));
             } catch (Exception e) {
                 e.printStackTrace();
                 return false;
@@ -287,7 +310,7 @@ public class KeyboardService extends InputMethodService {
         intent.setAction(Intent.ACTION_SEND);
         //intent.setType("image/gif");
         intent.setType(stickerData.mime);
-        PackageManager pm = getPackageManager();
+        PackageManager pm = context.getPackageManager();
         List<ResolveInfo> activities = pm.queryIntentActivities(intent, 0);
         for (ResolveInfo act : activities) {
             ActivityInfo ai = act.activityInfo;
@@ -300,12 +323,12 @@ public class KeyboardService extends InputMethodService {
         return null;
     }
 
-    private void shareLinkToGP() {
-        final InputConnection ic = getCurrentInputConnection();
+    public void shareLinkToGP() {
+        final InputConnection ic = inputMethodService.getCurrentInputConnection();
 
         if (deeplink != null) {
             ic.commitText(DEEPLINK_TEXT + " " + deeplink, 0);
-        } else {
+        }/* else {
             // deeplink
             JSONObject params = new JSONObject();
             try {
@@ -328,30 +351,31 @@ public class KeyboardService extends InputMethodService {
                 e.printStackTrace();
             }
         }
-        RokoLogger.addEvents(new Event("_ROKO.Stickers.Shared").set("contentId", deeplinkContentId));
+        RokoLogger.addEvents(new Event("_ROKO.Stickers.Shared").set("contentId", deeplinkContentId));*/
     }
 
     public void onStartInputView(EditorInfo info, boolean restarting) {
-        startTime = System.currentTimeMillis();
+        /*startTime = System.currentTimeMillis();
         editorInfo = info;
         RokoLogger.addEvents(new Event("_ROKO.Stickers.Entered"));
-        getStickers();
+        getStickers();*/
 
     }
 
     public void onFinishInputView(boolean finishingInput) {
-        if (startTime > 0) {
+        /*if (startTime > 0) {
             long timeSpent = (System.currentTimeMillis() - startTime) / 1000;
             RokoLogger.addEvents(new Event("_ROKO.Stickers.Close").set("Time spent", timeSpent));
-        }
+        }*/
     }
 
-    private boolean isCommitContentSupported(@Nullable EditorInfo editorInfo, @NonNull String mimeType) {
+    private boolean isCommitContentSupported(
+            @Nullable final EditorInfo editorInfo, @NonNull final String stickerMimeType) {
         if (editorInfo == null) {
             return false;
         }
 
-        final InputConnection ic = getCurrentInputConnection();
+        final InputConnection ic = inputMethodService.getCurrentInputConnection();
         if (ic == null) {
             return false;
         }
@@ -362,8 +386,19 @@ public class KeyboardService extends InputMethodService {
 
         final String[] supportedMimeTypes = EditorInfoCompat.getContentMimeTypes(editorInfo);
 //        Toast.makeText(this, "size: " + supportedMimeTypes.length, Toast.LENGTH_SHORT).show();
-        for (String supportedMimeType : supportedMimeTypes) {
-            if (ClipDescription.compareMimeTypes(mimeType, supportedMimeType)) {
+        return isMimeTypesCompatible(supportedMimeTypes, stickerMimeType);
+    }
+
+    public static boolean isMimeTypesCompatible(@NonNull final String[] mimeTypes) {
+        // NOTE: let inputContent handle it if the assumption is wrong
+        return isMimeTypesCompatible(mimeTypes, MIME_TYPE_PNG);
+    }
+
+    public static boolean isMimeTypesCompatible(
+            final String[] mimeTypes, final String stickerMimeType) {
+        for (String mimeType : mimeTypes) {
+            if (ClipDescription.compareMimeTypes(MIME_TYPE_GIF, mimeType)
+                    || ClipDescription.compareMimeTypes(stickerMimeType, mimeType)) {
                 return true;
             }
         }
@@ -382,7 +417,7 @@ public class KeyboardService extends InputMethodService {
             return true;
         }
 
-        final InputBinding inputBinding = getCurrentInputBinding();
+        final InputBinding inputBinding = inputMethodService.getCurrentInputBinding();
         if (inputBinding == null) {
             Log.e(TAG, "inputBinding should not be null here. You are likely to be hitting b.android.com/225029");
             return false;
@@ -390,7 +425,7 @@ public class KeyboardService extends InputMethodService {
         final int packageUid = inputBinding.getUid();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            final AppOpsManager appOpsManager = (AppOpsManager) getSystemService(Context.APP_OPS_SERVICE);
+            final AppOpsManager appOpsManager = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
             try {
                 appOpsManager.checkPackage(packageUid, packageName);
             } catch (Exception e) {
@@ -399,7 +434,7 @@ public class KeyboardService extends InputMethodService {
             return true;
         }
 
-        final PackageManager packageManager = getPackageManager();
+        final PackageManager packageManager = context.getPackageManager();
         final String possiblePackageNames[] = packageManager.getPackagesForUid(packageUid);
         for (final String possiblePackageName : possiblePackageNames) {
             if (packageName.equals(possiblePackageName)) {
@@ -409,22 +444,28 @@ public class KeyboardService extends InputMethodService {
         return false;
     }
 
-    public void onCreate() {
-        super.onCreate();
+    public void createDirs(Context context) {
+        // context.getCacheDir().getAbsolutePath();
 
-        SharedPreferences RokoMobiPreferences = this.getSharedPreferences("_RokoMobi", Context.MODE_PRIVATE);
-        RokoMobiPreferences.edit().remove("apiUrl").apply();
-        RokoMobiPreferences.edit().remove("apiToken").apply();
-
-        imagesDir = new File(getFilesDir(), "images");
+        imagesDir = new File(context.getFilesDir(), "images");
         imagesDir.mkdirs();
 
-        tempDir = new File(getFilesDir(), "com/glowlabs/rokomoji/stickers");
+        tempDir = new File(context.getFilesDir(), "stickers"); // com/glowlabs/rokomoji/stickers
         tempDir.mkdirs();
+    }
+
+    public void onCreate() {
+        //super.onCreate();
+
+        /*SharedPreferences rokoMobiPreferences = context.getSharedPreferences("_RokoMobi", Context.MODE_PRIVATE);
+        rokoMobiPreferences.edit().remove("apiUrl").apply();
+        rokoMobiPreferences.edit().remove("apiToken").apply();*/
+
+        createDirs(context);
 
         deeplinkContentId = UUID.randomUUID().toString();
-        stickers = new Stickers(this);
-        RokoMobi.start(this, new RokoMobi.CallbackStart() {
+        stickers = new Stickers(context);
+        /*RokoMobi.start(context, new RokoMobi.CallbackStart() {
             @Override
             public void start() {
                 // deeplink
@@ -451,7 +492,8 @@ public class KeyboardService extends InputMethodService {
                 // sticker
                 getStickers();
             }
-        });
+        });*/
+        authority = context.getPackageName() + ".rokomoji";
     }
 
     private Boolean stickerToShare(@NonNull StickerData stickerData) {
@@ -508,8 +550,8 @@ public class KeyboardService extends InputMethodService {
                         dataWriter.flush();
                         dataWriter.close();
                     }
-                    intent.putExtra(Intent.EXTRA_STREAM, FileProvider.getUriForFile(this, authority, tempFile));
-                    getApplicationContext().startActivity(intent);
+                    intent.putExtra(Intent.EXTRA_STREAM, FileProvider.getUriForFile(context, authority, tempFile));
+                    context.getApplicationContext().startActivity(intent);
 
                     shared = true;
                 } finally {
@@ -528,7 +570,5 @@ public class KeyboardService extends InputMethodService {
             return shared;
         }
     }
-
-
 }
 

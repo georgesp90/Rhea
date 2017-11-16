@@ -310,13 +310,13 @@ public class Stickers {
         final String PACK_ICON="pack_on.png";
         String curAssets="";
 
-        try {
+        /*try {
             in = lContext.getAssets().open(PACK_APP+"/"+PACK_ICON);
             curAssets=PACK_APP;
             packList = lContext.getAssets().list(curAssets);
         } catch (IOException e) {
             e.printStackTrace();
-        }
+        }*/
         if(in==null) {
             try {
                 in = lContext.getAssets().open(PACK_LIB+"/"+PACK_ICON);
@@ -331,7 +331,7 @@ public class Stickers {
             long packId = 1;
             PackData packData = new PackData();
             packData.objectId = packId;
-            packData.name = "Glowmoji";
+            packData.name = "Rheamoji";
             packData.iconOn = copyImgFile(in, "i" + packId + "_on");
             //packData.iconOff = copyImgFile(inOff, "i" + packId + "_off");
             List<StickerData> stickerData = new ArrayList<StickerData>();
